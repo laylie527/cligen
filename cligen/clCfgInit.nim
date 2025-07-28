@@ -15,7 +15,7 @@ proc apply(c: var ClCfg, path: string, plain=false) =
   let relTo = path.parentDir & '/'
   var f = newFileStream(path, fmRead)
   if f == nil: return
-  var p: CfgParser
+  var p = CfgParser()
   var rendOpts = initTable[string, string]()
   open(p, f, path)
   while true:

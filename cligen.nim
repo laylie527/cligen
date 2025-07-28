@@ -61,6 +61,7 @@ type    # Main defns CLI authors need be aware of (besides top-level API calls)
   HelpError*   = object of CatchableError ## User-Syntax/Semantic Err; ${HELP}
 
 proc descape(s: string): string =
+  result = ""
   for c, escaped in s.descape: result.add c
 
 {.push hint[GlobalVar]: off.}
@@ -96,6 +97,7 @@ const builtinOptions = ["help", "helpsyntax", "version"]
 
 proc toInts*(x: seq[ClHelpCol]): seq[int] =
   ##Internal routine to convert help column enums to just ints for `alignTable`.
+  result = default seq[int]
   for e in x: result.add(int(e))
 
 when defined(cgCfgToml):    # An include helpTmpl and syntaxHelp
@@ -105,11 +107,13 @@ elif not defined(cgCfgNone):
 
 proc onCols*(c: ClCfg): seq[string] =
   ##Internal routine to map help table color specs to strings for `alignTable`.
+  result = default seq[string]
   for e in ClHelpCol.low..ClHelpCol.high:
     result.add c.helpAttr.getOrDefault($e, "")
 
 proc offCols*(c: ClCfg): seq[string] =
   ##Internal routine to map help table color specs to strings for `alignTable`.
+  result = default seq[string]
   for e in ClHelpCol.low..ClHelpCol.high:
     result.add c.helpAttrOff.getOrDefault($e, "")
 
@@ -161,14 +165,17 @@ proc contains*(x: openArray[ClParse], paramName: string): bool =
   ##Test if the ``seq`` updated via ``setByParse`` contains a parameter.
   for e in x:
     if e.paramName == paramName: return true
+  false
 
 proc contains*(x: openArray[ClParse], status: ClStatus): bool =
   ##Test if the ``seq`` updated via ``setByParse`` contains a certain status.
   for e in x:
     if e.status == status: return true
+  false
 
 proc numOfStatus*(x: openArray[ClParse], stati: set[ClStatus]): int =
   ##Count elements in the ``setByParse seq`` with parse status in ``stati``.
+  result = 0
   for e in x:
     if e.status in stati: inc(result)
 
@@ -190,6 +197,7 @@ proc containsParam(fpars: NimNode, key: NimNode): bool =
     for i in 0 ..< len(idefs) - 3:      #..since`suppress` is a seq we check.
       if maybeDestrop(idefs[i]) == key: return true
     if maybeDestrop(idefs[^3]) == key: return true
+  false
 
 proc formalParamExpand(fpars: NimNode, n: auto,
                        suppress: seq[NimNode]= @[]): NimNode =
@@ -220,6 +228,7 @@ iterator ids(vars: seq[NimNode], fpars: NimNode, posIx = 0): NimNode =
 
 proc hasId(vars: seq[NimNode]; fpars, key: NimNode; posIx = 0): bool =
   for id in ids(vars, fpars, posIx): (if id.maybeDestrop == key: return true)
+  false
 
 iterator AListPairs(alist: NimNode, msg: string): (NimNode, NimNode) =
   if alist.kind == nnkSym:
@@ -497,16 +506,16 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
     result = newStmtList()
     let tabId = ident("tab")            # local help table var
     result.add(quote do:
-      var `apId`: ArgcvtParams
+      var `apId` = ArgcvtParams()
       `apId`.val4req = `cf`.hTabVal4req
       let shortH = `shortHlp`
       var `allId`: seq[string] =
         if `cf`.helpSyntax.len > 0: @[ "help", "help-syntax" ] else: @[ "help" ]
-      var `cbId`: CritBitTree[string]
+      var `cbId` = CritBitTree[string]()
       `cbId`.incl(optionNormalize("help"), "help")
       if `cf`.helpSyntax.len > 0:
         `cbId`.incl(optionNormalize("help-syntax"), "help-syntax")
-      var `mandId`: seq[string]
+      var `mandId` = default seq[string]
       var `tabId`: TextTab = @[]
       let helpHelpRow = @[ "-"&shortH&", --help", "", "", `helpHelp`[1] ]
       let `skipHelp` = `skipHelp` or `cf`.noHelpHelp
@@ -754,11 +763,11 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
         raise newException(ParseError, "Unknown option")
     result.add(newNimNode(nnkOfBranch).add(newStrLitNode("")).add(ambigReport))
     result.add(newNimNode(nnkElse).add(quote do:
-      var mb, k: string
-      k = "short"
+      var mb = ""
+      var k = "short"
       if `pId`.kind == cmdLongOption:
         k = "long"
-        var idNorm: seq[string]
+        var idNorm = default seq[string]
         for id in allParams: idNorm.add(optionNormalize(id))
         let sugg = suggestions(optionNormalize(`pId`.key), idNorm, allParams)
         if sugg.len > 0: mb &= "Maybe you meant one of:\n\t" & `g0` &
@@ -778,7 +787,7 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
       let posId = spars[posIx][0]
       let tmpId = ident("tmp" & $posId)
       result[0].add(newNimNode(nnkElse).add(quote do:
-        var `tmpId`: type(`posId`[0])
+        var `tmpId` = default type(`posId`[0])
         `apId`.key = "positional $" & $`posNoId`
         `apId`.val = `pId`.key
         `apId`.sep = "="
@@ -958,6 +967,7 @@ template ambigSubcommand*(cb: CritBitTree[string], attempt: string) =
   quits(cgParseErrorExitCode)
 
 proc firstParagraph(doc: string): string =
+  result = ""
   var first = true
   for line in doc.split('\n'):
     if line.len == 0: return

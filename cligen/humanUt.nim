@@ -5,11 +5,11 @@ import std/[strutils, parseutils]
 proc parseInt*(s: string, valIfNAN: int): int =
   ##A helper function to parse ``s`` into an integer, but default to some value
   ##when ``s`` is not an number at all.
-  if parseutils.parseInt(s, result) == 0: result = valIfNAN
+  try: strutils.parseInt(s) except ValueError: valIfNAN
 
 proc cmpN*(a, b: string): int =
   ##Cmp strs w/"to end of string" numeric substrs as nums.  Eg., "x.20" >"x.1".
-  var i: int                              #Need to scan to first differing byte
+  var i = 0                               #Need to scan to first differing byte
   let n = min(a.len, b.len)               #..& then if num parse & cmp as such.
   while i < n:                            #May have >0 eql num substr pre-diff
     while i < n and a[i] == b[i]: i.inc   #Scan for diff byte
@@ -18,13 +18,14 @@ proc cmpN*(a, b: string): int =
       return cmp(a[i], b[i])
     while i > 0 and a[i-1].isDigit:       #Scan bk to num start; b=a up to here
       i.dec                               #i<-beg of common numeric pfx, if any.
-    var x, y: BiggestInt
+    var x, y = BiggestInt(0)
     try:
       discard parseBiggestInt(a, x, i)
       discard parseBiggestInt(b, y, i)
     except ValueError:                    #out of bounds
       return cmp(a, b)
     return cmp(x, y)
+  0
 
 proc humanReadable4*(bytes: uint, binary=false): string =
   ## A low-precision always <= 4 text columns human readable size formatter.
@@ -112,6 +113,7 @@ when not (defined(cgCfgNone) and defined(cgNoColor)): # need BOTH to elide
     s = textAttrAliases[s]
   try: result = attrNames[s]
   except KeyError:
+    result = ""
     if s.len >= 2:
       let prefix = case s[0].toUpperAscii
                    of 'F': "38;"
@@ -147,7 +149,7 @@ True color: {fbu}RRGGBB with RGB hex digits""" & ".\n" & helpColorScl
 
  proc textAttrOn*(spec: seq[string], plain=false): string =
   if plain: return
-  var components: seq[string]          #Build \e[$A;3$F;4$Bm for attr A,colr F,B
+  var components = default seq[string]          #Build \e[$A;3$F;4$Bm for attr A,colr F,B
   for word in spec: components.add(textAttrParse(word))
   if components.len>0 and "" notin components: "\x1b["&components.join(";")&"m"
   else: ""
@@ -159,11 +161,12 @@ True color: {fbu}RRGGBB with RGB hex digits""" & ".\n" & helpColorScl
  proc specifierHighlight*(fmt: string, pctTerm: set[char], plain=false, pct='%',
     openBkt="([{", closeBkt=")]}", keepPct=true, termInAttr=true): string =
   ## `".. %X(A1 A2)Ya .."` -> `".. ON[A1 A2]%XYaOFF .."`
+  result = ""
   var term = pctTerm; term.incl pct     #Caller need not enter pct in pctTerm
-  var other, attr, attrOn: string       #..Should maybe check xBkt^pctTerm=={}.
+  var other, attr, attrOn = ""          #..Should maybe check xBkt^pctTerm=={}.
   var inPct = false
   var mchdBkt = false
-  var bkt: char
+  var bkt = '\0'
   let attrOff = if plain: "" else: textAttrOff
   for c in fmt:
     if inPct:
@@ -202,6 +205,7 @@ True color: {fbu}RRGGBB with RGB hex digits""" & ".\n" & helpColorScl
 
  proc humanDuration*(dt: int, fmt: string, plain=false): string =
   ## fmt is divisor-aka-numerical-unit-in-seconds unit-text `[attrs]`
+  result = ""
   let cols = fmt.splitWhitespace
   let attrOff = if plain: "" else: textAttrOff
   try:
@@ -252,7 +256,7 @@ True color: {fbu}RRGGBB with RGB hex digits""" & ".\n" & helpColorScl
   ## usual to block adornment interpretation.  This proc inits ``rstMdSGR`` with
   ## a Table of {style: "open;close"} text adornments. ``plain==true`` will make
   ## the associated ``render`` proc merely remove all such adornments.
-  result.attr = initTable[RstKind, tuple[on, off: string]]()
+  result = rstMdSGR(attr: initTable[RstKind, tuple[on, off: string]]())
   for key, val in attrs:
     let c = val.split(';')
     if c.len != 2:
@@ -311,7 +315,8 @@ True color: {fbu}RRGGBB with RGB hex digits""" & ".\n" & helpColorScl
  proc render*(r: rstMdSGR, rstOrMd: string): string =
   ## Translate restructuredText inline font markup (extended with triple star)
   ## to ANSI SGR/highlighted text via highlighting ``r``.
-  var toks: seq[RstToken]       # Last 2 tokens + current decide what to do
+  result = ""
+  var toks = default seq[RstToken]       # Last 2 tokens + current decide what to do
   var mup = false               # Markup does not nest; mup==true => cannot Beg
   let none = ("", "")
   for tok in rstOrMd.rstTokens:

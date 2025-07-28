@@ -52,12 +52,14 @@ proc toStrIni*(c: range[0 .. 255]): NimNode =
 
 proc toStrSeq*(strSeqInitializer: NimNode): seq[string] =
   ## Transform a literal `@[ "a", .. ]` into compile-time `seq[string]`
+  result = default seq[string]
   if strSeqInitializer.len > 1:
     for kid in strSeqInitializer[1]:
       result.add($kid)
 
 proc toIdSeq*(strSeqInitializer: NimNode): seq[NimNode] =
   ## Get a compile-time `seq[ident]` from a symbol or literal `@[ "a", .. ]`.
+  result = default seq[NimNode]
   if strSeqInitializer.kind == nnkSym:
     when (NimMajor, NimMinor, NimPatch) >= (1,7,3):
       for n in strSeqInitializer.getImpl[2]: result.add n.strVal.ident
@@ -71,6 +73,7 @@ proc toIdSeq*(strSeqInitializer: NimNode): seq[NimNode] =
 proc has*(ns: seq[NimNode], n: NimNode): bool =
   for e in ns:
     if eqIdent(e, n): return true
+  false
 
 proc srcPath*(n: NimNode): string =
   let fileParen = lineInfo(n)
@@ -92,6 +95,7 @@ proc paramPresent*(n: NimNode, kwArg: string): bool =
   for k in n:
     if k.kind == nnkExprEqExpr and k[0] == kwArgId:
       return true
+  false
 
 proc paramVal*(n: NimNode, kwArg: string): NimNode =
   ## Get the FIRST RHS/value of a keyword argument/named parameter
@@ -130,6 +134,7 @@ const textCh = block:
 proc summaryOfModule*(sourceContents: string): string =
   ## First paragraph of doc comment for module defining `sourceContents` (or
   ## empty string); Used to default `["multi",doc]`.
+  result = ""
   var nPfx = 0
   for line in sourceContents.split("\n"):
     let ln = line.strip()

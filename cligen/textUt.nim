@@ -65,6 +65,7 @@ const runeBytes: array[256, int8] = [ # adix/sequint could do in 96B, not 256B
 proc printedLen*(a: openArray[char]): int =
   ## Rendered width in terminal cells, accounting for ANSI SGR colors &| utf8.
   ## This counts invalid start-bytes as 1 cell.
+  result = 0
   var skip = 0
   for c in a.noCSI_OSC:
     if skip > 0: dec skip
@@ -90,7 +91,7 @@ iterator printedChars*(s:openArray[char],skip=0,lim=int.high): (Slice[int],int)=
   const inSGR = {'0'..'9', ';'} + eoSGR
   let lim = if lim >= 0: skip + lim else: int.high
   var pastLim = false
-  var i, wDid: int
+  var i, wDid = 0
   while i < s.len:
     let i0 = i; var is0 = false; var w = 1
     if s[i] == '\e':                    # ANSI SGR seqs match \e[[0-9;]*m
@@ -144,7 +145,7 @@ iterator paragraphs*(s: string, indent = {' ', '\t'}):
 iterator boundWrap(w: openArray[int], m=80): Slice[int] =
   ## Yield slices of ``w`` corresponding to blocks of all ``< m - 1`` or else a
   ## singleton slice ``j..j`` of just an overflowing word for those.
-  var i, j: int
+  var i, j = 0
   while i < w.len:
     while j < w.len and w[j] < m - 1:
       j.inc
@@ -217,6 +218,7 @@ proc extraSpace(w0, sep, w1: string): bool {.inline.} =
 proc wrap*(s: string; maxWidth=ttyWidth, power=3, prefixLen=0): string =
   ## Multi-paragraph with indent==>pre-formatted optimal line wrapping using
   ## the badness metric *sum excessSpace^power*.
+  result = ""
   if maxWidth == -1: return s           # -1 => wrap disabled
   let maxW = if maxWidth == 0: ttyWidth else: maxWidth
   let maxWidth = maxW  -  2 * prefixLen
@@ -225,7 +227,7 @@ proc wrap*(s: string; maxWidth=ttyWidth, power=3, prefixLen=0): string =
     if pre:
       result.add para; result.add '\n'
     else:
-      var words, sep: seq[string]
+      var words, sep = default seq[string]
       discard para.strip.splitr(words, wspace, sp=sep.addr)
       for i in 0 ..< words.len:
         if words[i][^1] in {'?','!'} or (words[i][^1]=='.' and i+1<words.len and
@@ -381,7 +383,8 @@ proc suggestions*[T](wrong: string; match, right: openArray[T],
   ## distances is halted once result has `enoughResults` (but all suggestions
   ## for a given distance are included).  Matches >= `unrelatedDistance` are
   ## not considered.
-  var dI, dist: seq[C]        #dI for Damerau & seq parallel to `match`,`right`
+  result = default seq[string]
+  var dI, dist = default seq[C]        #dI for Damerau & seq parallel to `match`,`right`
   if match.len != right.len:
     raise newException(ValueError, "match.len must equal right.len")
   for m in match:                         #Distance calc slow => save answers
@@ -493,5 +496,6 @@ iterator unescaped*(s: string): char =
 
 proc toSetChar*(s: string, unescape=false): set[char] =
   ## Make & return character set built from a string, maybe un-escaping.
+  result = default set[char]
   if unescape: (for c in s.unescaped: result.incl c)
   else: (for c in s: result.incl c)

@@ -81,7 +81,7 @@ proc optionNormalize*(s: string, wordSeparators="_-"): string {.noSideEffect.} =
   ##       of "myoptkey", "m": doSomething()
   result = newString(s.len)
   if s.len == 0: return
-  var wordSeps: set[char]   # compile a set[char] from ``wordSeparators``
+  var wordSeps = default set[char]   # compile a set[char] from ``wordSeparators``
   for c in wordSeparators:
     wordSeps.incl(c)
   result[0] = s[0]
@@ -98,6 +98,7 @@ proc optionNormalize*(s: string, wordSeparators="_-"): string {.noSideEffect.} =
 
 {.push warning[ProveField]: off.}
 proc valsWithPfx*[T](cb: CritBitTree[T], key: string): seq[T] =
+  result = default seq[T]
   for v in cb.valuesWithPrefix(optionNormalize(key)): result.add(v)
 
 proc lengthen*[T](cb: CritBitTree[T], key: string, prefixOk=false): string =
@@ -106,7 +107,7 @@ proc lengthen*[T](cb: CritBitTree[T], key: string, prefixOk=false): string =
   let n = optionNormalize(key)
   if not prefixOk:
     return n
-  var ks: seq[string]
+  var ks = default seq[string]
   for k in cb.keysWithPrefix(n): ks.add(k)
   if ks.len == 1:
     return ks[0]
@@ -178,21 +179,25 @@ proc initOptParser*(cmdline: seq[string] = commandLineParams(),
   ##
   ## Parameters following either "--" or any literal parameter in ``stopWords``
   ## are never interpreted as options.
-  result.cmd = cmdline
-  result.shortNoVal = shortNoVal
+  result = OptParser(
+    cmd: cmdline,
+    shortNoVal: shortNoVal,
+    # longNoVal
+    requireSep: requireSeparator,
+    sepChars: sepChars,
+    opChars: opChars,
+    # stopWords
+    longPfxOk: longPfxOk,
+    stopPfxOk: stopPfxOk,
+    off: 0,
+    optsDone: false,
+  )
   for s in longNoVal:   #Take normalizer param vs. hard-coding optionNormalize?
     if s.len > 0: result.longNoVal.incl(optionNormalize(s), s)
-  result.requireSep = requireSeparator
-  result.sepChars = sepChars
-  result.opChars = opChars
   {.push warning[ProveField]: off.}
   for w in stopWords:
     if w.len > 0: result.stopWords.incl(optionNormalize(w), w)
   {.pop.}
-  result.longPfxOk = longPfxOk
-  result.stopPfxOk = stopPfxOk
-  result.off = 0
-  result.optsDone = false
 
 proc initOptParser*(cmdline: string): OptParser =
   ## Initializes option parses with cmdline.  Splits cmdline in on spaces and

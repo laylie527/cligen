@@ -30,6 +30,7 @@ proc nimEscape*(s: string, quote='"'): string =
 
 proc unescape*(s: string): string =
   ## Handles 1-byte octal, \[abtnvfre], and \xDD hex escapes
+  result = ""
   for c in textUt.unescaped(s): result.add c
 
 type ElementError* = object of ValueError
@@ -156,7 +157,7 @@ template doArgParse[WideT: SomeNumber, T: SomeNumber](
   ## Required because we cannot store symbols `parseBiggestInt/UInt` in
   ## a `const` (limitation of Nim's VM). However, we can pass them to
   ## an `untyped` parameter of a template without problems.
-  var parsed: WideT
+  var parsed = WideT(0)
   let stripped = strip(a.val)
   if len(stripped) == 0 or parse(stripped, parsed) != len(stripped):
     a.msg = "Bad value: \"$1\" for option \"$2\"; expecting $3\n$4" %
@@ -270,10 +271,11 @@ proc argHelp*[T,U](dfl: HSlice[T,U]; a: var ArgcvtParams): seq[string] =
 
 proc argAggSplit*[T](a: var ArgcvtParams, split=true): seq[T] =
   ## Split DPSV (e.g. ",hello,world") into a parsed `seq[T]`.
+  result = default seq[T]
   let toks = if split: a.val[1..^1].split(a.val[0]) else: @[ move(a.val) ]
   let old = a.sep; a.sep = ""     #can have agg[string] & want clobbers on elts
   for i, tok in toks:
-    var parsed, default: T
+    var parsed, default = default T
     a.val = tok
     if not argParse(parsed, default, a):
       result.setLen(0); a.sep = old
@@ -295,6 +297,7 @@ proc getDescription*[T](defVal: T, parNm: string, defaultHelp: string): string =
 
 proc formatHuman(a: string): string =
   const alphaNum = {'a'..'z'} + {'A'..'Z'} + {'0'..'9'}
+  result = ""
   if a.len == 0:
     result.addQuoted ""
     return result
@@ -312,6 +315,7 @@ proc formatHuman(a: string): string =
 
 proc formatHuman(a: seq[string]): string =
   if a.len == 0: result = "{}"
+  else: result = ""
   for i in 0..<a.len:
     if i>0:
       result.add ","
@@ -349,7 +353,7 @@ proc argParse*[T](dst: var seq[T], dfl: seq[T], a: var ArgcvtParams): bool =
     elif a.sep == "^=": dst = argAggSplit[T](a, false) & move(dst)
     elif a.sep == "-=":                     # Delete Mode
       let parsed = argAggSplit[T](a, false)[0]
-      var dstNew: seq[T]
+      var dstNew = default seq[T]
       for e in dst:                         # Slow algo,..
         if e != parsed: dstNew.add e        # ..but preserves order
       dst = dstNew
@@ -363,7 +367,7 @@ proc argParse*[T](dst: var seq[T], dfl: seq[T], a: var ArgcvtParams): bool =
       dst = argAggSplit[T](a) & move(dst)
     elif a.sep == ",-=":                    # split-delete
       let parsed = argAggSplit[T](a)
-      var dstNew: seq[T]
+      var dstNew = default seq[T]
       for e in dst:                         # Slow algo,..
         if e notin parsed: dstNew.add e     # ..but preserves order
       dst = dstNew
@@ -374,8 +378,8 @@ proc argParse*[T](dst: var seq[T], dfl: seq[T], a: var ArgcvtParams): bool =
     return false
 
 proc argHelp*[T](dfl: seq[T], a: var ArgcvtParams): seq[string]=
-  var typ = $T; var df: string
-  var dflSeq: seq[string]
+  var typ = $T; var df = ""
+  var dflSeq = default seq[string]
   for d in dfl: dflSeq.add($d)
   argAggHelp(dflSeq, "array", typ, df)
   result = @[ a.argKeys, typ, df ]

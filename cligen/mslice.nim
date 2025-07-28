@@ -27,6 +27,7 @@ else:
   proc cmemrchr*(s: pointer, c: char, n: csize): pointer =
     for i in countdown(n - 1, 0):
       if cast[ptr char](s +! i)[] == c: return s +! i
+    nil
 
 type
   MSlice* = object
@@ -41,7 +42,7 @@ type
 proc toMSlice*(a: string, keep=false): MSlice =
   ## Convert string to an MSlice.  If ``keep`` is true, a copy is allocated
   ## which may be freed via ``dealloc(result.mem)``.
-  result.len = a.len
+  result = MSlice(len: a.len)
   if keep:
     result.mem = cast[cstring](alloc0(result.len + 1))
     copyMem result.mem, a.cstring, result.len
@@ -127,8 +128,10 @@ func find*(s: MSlice, sub: char, start: Natural = 0, last = -1): int =
 
 proc rebase*(ms: MSlice; origin0, origin1: pointer): MSlice =
   ## Adapt ms from base origin0 to new base, origin1.
-  result.len = ms.len
-  result.mem = origin1 +! (ms.mem -! origin0)
+  MSlice(
+    len: ms.len,
+    mem: origin1 +! (ms.mem -! origin0),
+  )
 
 proc setLen*(s: var MSlice, n: int) =
   ## Compatible with `setLen(seq|string)`, but this one can *ONLY SHORTEN*.
@@ -163,8 +166,10 @@ proc dup*(ms: MSlice): MSlice =
   ## Alloc & populate data for new `ms`.  This is useful when `ms` begins life
   ## from an RO MFile | getDelims slice & you want writable or longer-lived
   ## memory.  To not leak, `dealloc ms.mem`.
-  result.mem = alloc(ms.len)
-  result.len = ms.len
+  result = MSlice(
+    mem: alloc(ms.len),
+    len: ms.len,
+  )
   copyMem result.mem, ms.mem, ms.len
 
 proc toString*(ms: MSlice, s: var string) {.inline.} =
@@ -181,6 +186,7 @@ template toOpenArrayChar*(s: string): untyped =
 
 proc `$`*(ms: MSlice): string {.inline.} =
   ## Return a Nim string built from an MSlice.
+  result = ""
   ms.toString(result)
 
 proc add*(s: var string, ms: MSlice) {.inline.} =
@@ -198,6 +204,8 @@ func join*(a: openArray[MSlice], sep: string = ""): string =
     result = newStringOfCap(t)
     result.add a[0]
     for i in 1..high(a): result.add sep; result.add a[i]
+  else:
+    result = ""
 
 proc `==`*(x, y: MSlice): bool {.inline.} =
   ## Compare a pair of MSlice for strict equality.
@@ -272,6 +280,7 @@ proc nextSlice*(mslc, ms: var MSlice, sep='\n', eat='\0'): int =
   ##
   ## This procedure is somewhat analogous to reading from a stream, in the
   ## sense that the input slice is drained.
+  result = 0
   if mslc.mem != nil:
     var remaining = mslc.len
     if remaining > 0:
@@ -333,7 +342,7 @@ proc msplit*(mslc: MSlice, fs: var seq[MSlice], sep=' ', eat='\0') =
 
 proc firstN*(ms: MSlice, n=1, term='\n'): MSlice =
   ## Return the first `n` `term`-terminated records, including all terminators.
-  result.mem = ms.mem
+  result = MSlice(mem: ms.mem)
   var i = 1
   for s in ms.mSlices(term):
     if i >= n:
@@ -350,6 +359,7 @@ proc charIn(x: char, c: set[char]): bool {.inline.} = x in c
 proc mempbrk*(s: pointer, accept: set[char], n: csize): pointer {.inline.} =
   for i in 0 ..< int(n):  #Like cstrpbrk or cmemchr but for mem
     if (cast[cstring](s))[i] in accept: return s +! i
+  nil
 
 proc stripLeading*(s: var MSlice, chars=wspace) =
   while s.len > 0 and cast[cstring](s.mem)[0] in chars:
@@ -404,30 +414,38 @@ template defSplit[T](slc: T, fs: var seq[MSlice], n: int, repeat: bool,
   fs.setLen(result)
 
 proc msplit*(s: MSlice, fs: var seq[MSlice], sep=' ', n=0, repeat=false):int=
+  result = 0
   defSplit(s, fs, n, repeat, sep, cmemchr, charEq)
 
 proc msplit*(s: MSlice, sep=' ', n=0, repeat=false): seq[MSlice] {.inline.} =
+  result = default seq[MSlice]
   discard msplit(s, result, sep, n, repeat)
 
 proc msplit*(s: MSlice, fs: var seq[MSlice], seps=wspace, n=0, repeat=true):int=
+  result = 0
   defSplit(s, fs, n, repeat, seps, mempbrk, charIn)
 
 proc msplit*(s: MSlice, n=0, seps=wspace, repeat=true): seq[MSlice] {.inline.} =
+  result = default seq[MSlice]
   discard msplit(s, result, seps, n, repeat)
 
 proc msplit*(s: string, fs: var seq[MSlice], sep=' ', n=0, repeat=false):int=
   ## msplit w/reused ``fs[]`` & bounded cols ``n``. ``discard msplit(..)``.
+  result = 0
   defSplit(s, fs, n, repeat, sep, cmemchr, charEq)
 
 proc msplit*(s: string, sep: char, n=0, repeat=false): seq[MSlice] {.inline.} =
   ##Like ``msplit(string, var seq[MSlice], int, char)``, but return the ``seq``.
+  result = default seq[MSlice]
   discard msplit(s, result, sep, n, repeat)
 
 proc msplit*(s: string, fs: var seq[MSlice], seps=wspace, n=0, repeat=true):int=
   ## Fast msplit with cached `fs[]` and single-char-of-set delimiter. n >= 2.
+  result = 0
   defSplit(s, fs, n, repeat, seps, mempbrk, charIn)
 
 proc msplit*(s: string, seps=wspace, n=0, repeat=true): seq[MSlice] {.inline.}=
+  result = default seq[MSlice]
   discard msplit(s, result, seps, n, repeat)
 
 template defSplitr(slc: string, fs: var seq[string], n: int, repeat: bool,
@@ -473,19 +491,23 @@ template defSplitr(slc: string, fs: var seq[string], n: int, repeat: bool,
 proc splitr*(s: string, fs: var seq[string], sep=' ', n=0, repeat=false,
              sp: ptr seq[string] = nil): int =
   ##split w/reused ``fs[]`` & bounded cols ``n``, maybe-repeatable sep.
+  result = 0
   defSplitr(s, fs, n, repeat, sep, cmemchr, charEq, sp)
 
 proc splitr*(s: string, sep: char, n=0, repeat=false): seq[string] {.inline.} =
   ##Like ``splitr(string, var seq[string], int, char)``, but return the ``seq``.
+  result = default seq[string]
   discard splitr(s, result, sep, n, repeat)
 
 proc splitr*(s: string, fs: var seq[string], seps=wspace, n=0, repeat=true,
              sp: ptr seq[string] = nil): int =
   ##split w/reused `fs[]`, bounded cols char-of-set sep which can maybe repeat.
+  result = 0
   defSplitr(s, fs, n, repeat, seps, mempbrk, charIn, sp)
 
 proc splitr*(s: string, seps=wspace, n=0, repeat=true): seq[string] {.inline.}=
   ##Like ``splitr(string, var seq[string], int, set[char])``,but return ``seq``.
+  result = default seq[string]
   discard splitr(s, result, seps, n, repeat)
 
 type Sep* = tuple[repeat: bool, chrDlm: char, setDlm: set[char], n: int]
@@ -500,21 +522,27 @@ proc initSep*(seps: string): Sep =
   if seps.len == 0:
     raise newException(ValueError, "Empty seps disallowed")
   elif seps[0] == 'w':          #User can use other permutation if cset needed
-    result.repeat = true
-    result.chrDlm = ' '
-    result.setDlm = wspace
-    result.n      = wspace.card #=6 unless wspace defn changes
+    (
+      repeat: true,
+      chrDlm: ' ',
+      setDlm: wspace,
+      n: wspace.card,  #=6 unless wspace defn changes
+    )
   else:
+    var setDlm = default set[char]
     for d in seps:
       case d
-      of '0': result.setDlm.incl '\0'
-      of 't': result.setDlm.incl '\t'
-      of 'n': result.setDlm.incl '\n'
-      else  : result.setDlm.incl d
-    result.n = result.setDlm.card
-    result.chrDlm = if   seps[0] == '0': '\0' elif seps[0] == 't': '\t'
-                    elif seps[0] == 'n': '\n' else: seps[0]
-    result.repeat = result.setDlm.card < seps.len
+      of '0': setDlm.incl '\0'
+      of 't': setDlm.incl '\t'
+      of 'n': setDlm.incl '\n'
+      else  : setDlm.incl d
+    (
+      repeat: setDlm.card < seps.len,
+      chrDlm: if seps[0] == '0': '\0' elif seps[0] == 't': '\t'
+              elif seps[0] == 'n': '\n' else: seps[0],
+      setDlm: setDlm,
+      n: setDlm.card,
+    )
 
 type Splitr* {.deprecated: "use Sep".} = Sep
 proc initSplitr*(seps: string): Sep {.deprecated: "use initSep".}= initSep(seps)
@@ -528,6 +556,7 @@ proc split*(s: Sep, line: string, cols: var seq[string], n=0) {.inline.} =
   else      : discard splitr(line, cols, s.chrDlm     , n, s.repeat)
 
 proc split*(s: Sep, line: string, n=0): seq[string] {.inline.} =
+  result = default seq[string]
   s.split(line, result, n)
 
 # `frame` APIs include separations unlike `split` APIs. Specifically, iterators
@@ -617,6 +646,7 @@ proc frame*(s: MSlice, sep: Sep, n=0): seq[TextFrame] =
   ## .. code-block:: nim
   ##   let x = "hi there you "
   ##   for tok in x.toMSlice.frame(" ".initSep, n=1): echo $tok
+  result = default seq[TextFrame]
   discard s.frame(result, sep, n)
 
 iterator items*(a: MSlice): char {.inline.} =
@@ -627,6 +657,7 @@ iterator items*(a: MSlice): char {.inline.} =
 func contains*(s: MSlice, cset: set[char]): bool = ## Test `s` for any `cset`
   for c in s:
     if c in cset: return true
+  false
 
 iterator pairs*(a: MSlice): tuple[ix: int; c: char] {.inline.} =
   ## Yields each (index,char) in `a`.
@@ -661,7 +692,7 @@ proc extend*(ms: MSlice, max: int, sep = '\n'): MSlice {.inline.} =
   ## whichever comes first.
   if ms.len > 0 and cast[ptr char](ms.mem +! (ms.len - 1))[] == sep:
     return ms
-  result.mem = ms.mem
+  result = MSlice(mem: ms.mem)
   let eos = ms.eos
   let next = cmemchr(eos, sep, (max - ms.len).csize)
   result.len = if next != nil: (next -! eos + ms.len + 1) else: max
@@ -672,6 +703,7 @@ proc nSplit*(n: int, data: MSlice, sep = '\n'): seq[MSlice] =
   ## sizes (in number of `sep`s, not bytes).  For IO efficiency, subdivision
   ## is done by bytes as a guess.  So, this is fast, but accuracy is limited by
   ## statistical regularity.
+  result = default seq[MSlice]
   if n < 2: result.add data             # n<1 & n<0 swept into just n==1 no-op
   else:
     let eod  = data.eos
@@ -685,9 +717,10 @@ proc nSplit*(n: int, data: MSlice, sep = '\n'): seq[MSlice] =
     result[^1].len = data.len - (result[^1].mem -! data.mem)
 
 proc toSeq(sset: set[uint8]): seq[uint8] =
+  result = default seq[uint8]
   for s in sset: result.add s
 proc makeDigits(cset: set[char], vals: seq[uint8]): array[256, char] =
-  for i in 0..255: result[i] = chr(255)
+  result = arrayWith(chr(255), 256)
   var i = 0
   for c in cset: result[ord(c)] = char(vals[i]); inc i
 const digits2  = makeDigits({'0', '1'}, {0'u8, 1'u8}.toSeq)
@@ -814,7 +847,7 @@ proc parseFloat*(s: MSlice|openArray[char]; eoNum: var int = doNotUse): float =
   var j = 0
   if s.len < 1 or s.mem.isNil: doReturn(0, 0.0)
   var sgn = 1.0; var esgn = 1
-  var exp, po10, nDig: int
+  var exp, po10, nDig = 0
   var ixPt = -1                               # index(decPoint)
   case s[j]                                   # Process 1st byte
   of '-': sgn = -1.0; inc j

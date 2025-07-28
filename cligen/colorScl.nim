@@ -71,12 +71,14 @@ proc hex*(rgb: Color3, lim: range[5..1024] = 256): string =
   ## Produce a string RGB RRGGBB or RRRGGGBBB of hex RedGreenBlue as needed.
   ## This is useful for HTML|X11 color specification even w/10-bit HDR color.
   let dig = (fastLog2(lim) + 3) div 4
+  result = ""
   result.add scaledCompon(rgb[0], lim).toHex(dig)
   result.add scaledCompon(rgb[1], lim).toHex(dig)
   result.add scaledCompon(rgb[2], lim).toHex(dig)
 
 proc ttc*(rgb: Color3, lim: range[5..1024] = 256): string =
   ## Produce decimal R;G;B string for a Terminal True Color specification.
+  result = ""
   result.add $scaledCompon(rgb[0], lim); result.add ';'
   result.add $scaledCompon(rgb[1], lim); result.add ';'
   result.add $scaledCompon(rgb[2], lim)
@@ -90,7 +92,7 @@ proc xt256*(rgb: Color3, lim: range[5..1024] = 256): string =
 
 var doNotUse: int
 proc parseColorScl*(s: MSlice | openArray[char] | string;
-                    nParsed: var int=doNotUse): Color3 =
+                    nParsed: out int=doNotUse): Color3 =
   ## Parse color scale like `<sclNmPfx>FLOAT[,..]` where <sclNmPfx> is the first
   ## letter of a scale name, FLOAT is 0..1 scale, & `[,..]` are optional params.
   ## `nParse` gets number of chars handled.  An eg. good spec is: "w.3,.7,.65"
@@ -110,6 +112,8 @@ proc parseColorScl*(s: MSlice | openArray[char] | string;
         inc nParsed; t.mem = s[nParsed].unsafeAddr; t.len = s.len - nParsed
         val = t.parseFloat(nTmp); inc nParsed, nTmp # parse float & update
     result = rgb(x, scl, sat, val)      # Finally dispatch to `rgb`
+  else:
+    result = (0.0, 0.0, 0.0)
 
 const helpColorScl* = "{fbu}sNAME<0.-1>[,..]: element of NAME: " &
                       "viridis hue[,s,v] wLen[,s,v] gray pm3d"
