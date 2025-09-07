@@ -43,7 +43,7 @@ when isMainModule:
     let arg0 = if cmdLine.len > 0: cmdLine[0] else: "help"
     let subc = optionNormalize(arg0)
     let rest: seq[string] = if cmdLine.len > 1: cmdLine[1..^1] else: @[]
-    var subCmdsN: seq[string]
+    var subCmdsN = default seq[string]
     for s in multiSubs: subCmdsN.add(optionNormalize(s))
     if cmdLine.len == 0:
       echo topLevelHelp("", clUseMulti, "SemiMultMult", multiSubs, multiDocs)
@@ -80,6 +80,7 @@ when isMainModule:
       echo "unknown subcommand: ", subc
       echo "Did you mean: ", suggestions(subc, subCmdsN, multiSubs).join("  \n")
       quit(1)
+    0
 
   dispatchGen(multi, stopWords = multiSubs & "help")
   cligenQuit(dispatchmulti())

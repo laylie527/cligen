@@ -402,7 +402,7 @@ proc match*[T](cb: CritBitTree[T]; key, tag: string; msg: var string,
   ## an ambiguous|unknown error message with possible suggestions if non-empty,
   ## unless ``suppress`` is true in which case msg is simply non-empty. ``tag``
   ## is a category for the message, like 'color' or such.
-  var ks: seq[string]
+  var ks = default seq[string]
   for k in cb.keysWithPrefix(key):
     if k == key:
       return (k, cb[k])                     #Exact match
@@ -417,11 +417,12 @@ proc match*[T](cb: CritBitTree[T]; key, tag: string; msg: var string,
   else:                                     #No match
     msg = "Unknown "
     if not suppress:                        #Skip calc if will not use
-      var allKeys: seq[string]
+      var allKeys = default seq[string]
       for k in cb.keys: allKeys.add k
       let sugg = suggestions(key, allKeys, allKeys)
       msg = msg & tag & " \"" & key & "\"." & (if sugg.len == 0: "" else:
             "  Maybe you meant one of:\n  " & sugg.join(" ")) & "\n"
+  ("", default T)
 
 proc match*[T](cb: CritBitTree[T]; key, tag: string; err=stderr):
               tuple[key: string, val: T] =

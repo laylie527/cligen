@@ -5,6 +5,7 @@ proc cfToCL*(path: string, subCmdName="", quiet=false,
              noRaise=false, activeSec=false): seq[string] =
   ## Drive Nim stdlib parsecfg to get either specific subcommand parameters if
   ## ``subCmdName`` is non-empty or else global command parameters.
+  result = @[]
   var activeSection = subCmdName.len == 0 or activeSec
   var f = newFileStream(path, fmRead)
   if f == nil:
@@ -13,7 +14,7 @@ proc cfToCL*(path: string, subCmdName="", quiet=false,
       return
     elif not noRaise: raise newException(IOError, "")
     else: return
-  var p: CfgParser
+  var p = CfgParser()
   open(p, f, path)
   while true:
     var e = p.next
@@ -44,6 +45,8 @@ proc envToCL*(evarName: string): seq[string] =
   if e.len == 0:
     return
   try: result = e.parseCmdLine # See os.parseCmdLine for details
-  except CatchableError: stderr.write "ignoring bad evarName $", evarName, "\n"
+  except CatchableError:
+    stderr.write "ignoring bad evarName $", evarName, "\n"
+    result = @[]
   when defined(debugEnvToCL):
     echo "parsed $", varNm, " into: ", result

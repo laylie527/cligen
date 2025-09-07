@@ -6,7 +6,7 @@ proc main(age: Age)=
 import cligen, cligen/argcvt
 
 proc argParse(dst: var Age, dfl: Age, a: var ArgcvtParams): bool =
-  var iDst: int
+  var iDst = 0
   result = argParse(iDst, int(dfl), a)
   dst = Age(iDst)
 

@@ -15,6 +15,7 @@ proc mergeParams(cmdNames: seq[string],
   ## otherwise).  Then it looks for a $PROG environment variables ('_' extended
   ## for multi-commands, e.g. $PROG_SUBCMD).  Finally, it appends the passed
   ## ``cmdLine`` (usually command-line-entered parameters or @["--help"]).
+  result = @[]
   when defined(debugMergeParams):
     echo "mergeParams got cmdNames: ", cmdNames, " cmdLine:", cmdLine
   if cmdNames.len < 3:  # If depth can vary CLauthor must write own mergeParams

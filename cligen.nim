@@ -445,6 +445,8 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
                 "` has neither a type nor a default value")
         if not implDef.has(fpars[i][0]):
           mandatory.add(i)
+      if spars[i][2].kind == nnkEmpty:
+        spars[i][2] = newCall(bindSym"default", nnkTypeOfExpr.newTree(spars[i][1]))
   let posNoId = ident("posNo")          # positional arg number
   let keyCountId = ident("keyCount")    # id for keyCount table
   let usageId = ident("usage")          # gen proc parameter
@@ -482,7 +484,7 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
   let aliasRefD = if alias.got: alias[1][1][1][3] else: es
   let aliases = if alias.got: quote do:
                     var `aliasSnId` = false
-                    var `aliasesId`: CritBitTree[seq[string]]
+                    var `aliasesId` = CritBitTree[seq[string]]()
                     for d in `aliasDefD`:
                       if d.len > 1: `aliasesId`[d[0]] = d[1 .. ^1]
                     var `dflSub`: seq[string] = if `aliasRefD`.len>0:
@@ -680,7 +682,7 @@ macro dispatchGen*(pro: typed{nkSym}, cmdName: string="", doc: string="",
         newStrLitNode(aliasRefN), aliasRefS).add(
           quote do:
             `aliasSnId` = true        #true for even unsuccessful attempted ref
-            var msg: string
+            var msg = ""
             let sub = `aliasesId`.match(`pId`.val, "alias ref", msg)
             if msg.len > 0:
               if cast[pointer](`setByParseId`) != cgSetByParseNil:
@@ -976,7 +978,7 @@ proc firstParagraph(doc: string): string =
 
 proc topLevelHelp*(doc: auto, use: auto, cmd: auto, subCmds: auto,
                    subDocs: auto): string =
-  var pairs: seq[seq[string]]
+  var pairs = default seq[seq[string]]
   for i in 0 ..< subCmds.len:
     if clCfg.render != nil:
       pairs.add(@[subCmds[i], clCfg.render(subDocs[i].firstParagraph)])
@@ -1019,9 +1021,9 @@ macro dispatchMultiGen*(procBkts: varargs[untyped]): untyped =
   let subDocsId = ident(prefix & "SubDocs")
   result.add(quote do:
     {.push hint[GlobalVar]: off.}
-    var `multiNmsId`: seq[string]
+    var `multiNmsId` = default seq[string]
     var `subCmdsId`: seq[string] = @[ "help" ]
-    var `subMchsId`: CritBitTree[string]
+    var `subMchsId` = CritBitTree[string]()
     `subMchsId`.incl("help", "help")
     var `subDocsId`: seq[string] = @[ "print comprehensive or per-cmd help" ]
     {.pop.})
@@ -1214,6 +1216,7 @@ macro initGen*(default: typed, T: untyped, positional="",
   let posId = ident(positional.strVal)
   var params = @[ quote do: `T` ] #Return type
   var assigns = newStmtList()     #List of assignments
+  assigns.add(newAssignment(ident"result", newCall(bindSym"default", T)))
   if   indirect == 1: assigns.add(quote do: result.new)
   elif indirect == 2: assigns.add(quote do: result=cast[`T`](`T`.sizeof.alloc))
   for kid in ti.children:         #iterate over fields
@@ -1250,9 +1253,10 @@ template initFromCLcf*[T](default: T, cmdName: string="", doc: string="",
     initGen(default, T, positional, suppress, "ini")
     dispatchGen(ini, cmdName, doc, help, short, usage, cf, false, false, AUTO,
                 @[], @[], @[], "x", mergeNames, alias)
-    try: result = x()
-    except HelpOnly, VersionOnly: quit(0)
-    except ParseError: quits(cgParseErrorExitCode)
+    try: x()
+    # TODO noreturn procs ought to disarm ProveInit
+    except HelpOnly, VersionOnly: quit(0); raiseAssert("")
+    except ParseError: quits(cgParseErrorExitCode); raiseAssert("")
   callIt()      #inside proc is not strictly necessary, but probably safer.
 
 template initFromCL*[T](default: T, cmdName: string="", doc: string="",

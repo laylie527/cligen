@@ -109,17 +109,17 @@ proc argHelp*(dfl: char; a: var ArgcvtParams): seq[string] =
 # enums
 proc argParse*[T: enum](dst: var T, dfl: T, a: var ArgcvtParams): bool =
   let valNorm = optionNormalize(a.val)      #Normalized strings
-  var allNorm: seq[string]
-  var allCanon: seq[string]                 #Canonical/helpCased string
+  var allNorm = default seq[string]
+  var allCanon = default seq[string]                 #Canonical/helpCased string
   type EnumCanon[T] = tuple[e: T; canon: string]
-  var crbt: CritBitTree[EnumCanon[T]]
+  var crbt = CritBitTree[EnumCanon[T]]()
   for e in low(T)..high(T):
     let canon = helpCase($e, clEnumVal)
     allCanon.add canon
     let norm = optionNormalize(canon)
     allNorm.add(norm)
     crbt[norm] = (e, canon)
-  var ks: seq[string]; var es: seq[T]
+  var ks = default seq[string]; var es = default seq[T]
   if valNorm in crbt:
     dst = crbt[valNorm].e; return true
   for v in crbt.valuesWithPrefix(valNorm):
@@ -439,8 +439,8 @@ proc argParse*[T](dst: var set[T], dfl: set[T], a: var ArgcvtParams): bool =
     return false
 
 proc argHelp*[T](dfl: set[T], a: var ArgcvtParams): seq[string]=
-  var typ = $T; var df: string
-  var dflSeq: seq[string]
+  var typ = $T; var df = ""
+  var dflSeq = default seq[string]
   for d in dfl: dflSeq.add($d)
   argAggHelp(dflSeq, "set", typ, df)
   result = @[ a.argKeys, typ, df ]
@@ -473,18 +473,21 @@ proc argParse*[T](dst: var HashSet[T], dfl: HashSet[T],
     return false
 
 proc argHelp*[T](dfl: HashSet[T], a: var ArgcvtParams): seq[string]=
-  var typ = $T; var df: string
-  var dflSeq: seq[string]
+  var typ = $T
+  var df = ""
+  var dflSeq = default seq[string]
   for d in dfl: dflSeq.add($d)
   argAggHelp(dflSeq, "hashset", typ, df)
   result = @[ a.argKeys, typ, df ]
 
 # Option[T]; Only simple/scalar wrapped types work well.
 proc argParse*[T](dst: var Option[T], dfl: Option[T], a:var ArgcvtParams): bool=
-  var uw: T             # An unwrapped value
+  var uw = default T # An unwrapped value
   if argParse(uw, (if dfl.isSome: dfl.get else: uw), a):
     dst = option(uw)
-    return true
+    true
+  else:
+    false
 
 proc argHelp*[T](dfl: Option[T], a: var ArgcvtParams): seq[string] =
   @[a.argKeys, $T, (if dfl.isSome: $dfl.get else: "?")]

@@ -19,6 +19,7 @@ proc demo*(optInt = none int): int =
     echo optInt
   else:
     echo "`optInt` unspecified: using ", 1
+  0
 
 when isMainModule:
   import cligen; dispatch demo, help={"optInt": "1 if not specified"}
