@@ -1253,10 +1253,10 @@ template initFromCLcf*[T](default: T, cmdName: string="", doc: string="",
     initGen(default, T, positional, suppress, "ini")
     dispatchGen(ini, cmdName, doc, help, short, usage, cf, false, false, AUTO,
                 @[], @[], @[], "x", mergeNames, alias)
-    try: x()
+    try: result = x()
     # TODO noreturn procs ought to disarm ProveInit
-    except HelpOnly, VersionOnly: quit(0); raiseAssert("")
-    except ParseError: quits(cgParseErrorExitCode); raiseAssert("")
+    except HelpOnly, VersionOnly: result = system.default(T); quit(0)
+    except ParseError: result = system.default(T); quits(cgParseErrorExitCode)
   callIt()      #inside proc is not strictly necessary, but probably safer.
 
 template initFromCL*[T](default: T, cmdName: string="", doc: string="",
